@@ -13,6 +13,7 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 find_package(eclipse-paho-mqtt-c REQUIRED)
+find_package(cjson REQUIRED)
 
 set(MCP_SOURCES
 	src/jsonrpc.c
@@ -23,9 +24,10 @@ set(MCP_SOURCES
 add_library(mcp-over-mqtt SHARED)
 target_include_directories(mcp-over-mqtt PRIVATE include)
 target_sources(mcp-over-mqtt PRIVATE ${MCP_SOURCES}) 
+target_link_libraries(mcp-over-mqtt PRIVATE eclipse-paho-mqtt-c::paho-mqtt3a cjson)
 
 add_executable(server examples/server.c)
-target_link_libraries(server mcp-over-mqtt paho-mqtt3a cjson)
+target_link_libraries(server mcp-over-mqtt eclipse-paho-mqtt-c::paho-mqtt3a cjson)
 
 include(GNUInstallDirs)
 if(UNIX)
