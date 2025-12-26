@@ -14,6 +14,10 @@ endif()
 
 find_package(eclipse-paho-mqtt-c REQUIRED)
 
+if(APPLE)
+    find_package(cjson REQUIRED)
+endif()
+
 set(MCP_SOURCES
 	src/jsonrpc.c
 	src/mcp.c
