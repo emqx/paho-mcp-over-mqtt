@@ -8,22 +8,30 @@ typedef enum {
     PROPERTY_REAL,
     PROPERTY_INTEGER,
     PROPERTY_BOOLEAN,
+    PROPERTY_ARRAY,
+    PROPERTY_OBJECT,
 } property_type_e;
 
 typedef union {
     double    real_value;
     long long integer_value;
-    char     *string_value;
+    char *    string_value;
     bool      boolean_value;
 } property_value_u;
 
-typedef struct {
+typedef struct property_s property_t;
+
+struct property_s {
     char *name;
     char *description;
 
     property_type_e  type;
     property_value_u value;
-} property_t;
+
+    // array or object specific
+    int         n_elements;
+    property_t *elements;
+};
 
 typedef struct {
     char *name;

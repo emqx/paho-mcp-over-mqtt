@@ -16,7 +16,7 @@ struct jsonrpc_id {
 
     union {
         int64_t i;
-        char   *s;
+        char *  s;
     } id;
 };
 
@@ -30,8 +30,8 @@ struct jsonrpc_result {
     union {
         struct {
             int64_t code;
-            char   *message;
-            char   *data;
+            char *  message;
+            char *  data;
         } error;
         cJSON *obj;
     } resp;
@@ -40,7 +40,7 @@ struct jsonrpc_result {
 struct jsonrpc {
     jsonrpc_id_t id;
 
-    char  *method;
+    char * method;
     cJSON *params;
 
     jsonrpc_result_t result;
@@ -208,10 +208,10 @@ jsonrpc_t *jsonrpc_server_online(const char *server_name,
                                  mcp_mqtt_role_t *roles)
 {
     jsonrpc_t *jsonrpc    = calloc(1, sizeof(jsonrpc_t));
-    cJSON     *root       = cJSON_CreateObject();
-    cJSON     *meta       = cJSON_CreateObject();
-    cJSON     *rbac       = cJSON_CreateObject();
-    cJSON     *json_roles = cJSON_CreateArray();
+    cJSON *    root       = cJSON_CreateObject();
+    cJSON *    meta       = cJSON_CreateObject();
+    cJSON *    rbac       = cJSON_CreateObject();
+    cJSON *    json_roles = cJSON_CreateArray();
 
     jsonrpc->id.id_type = JSONRPC_ID_NONE;
     jsonrpc->method     = "notifications/server/online";
@@ -355,8 +355,70 @@ jsonrpc_t *jsonrpc_tool_list_response(const jsonrpc_id_t *id, int n_tools,
                 cJSON_AddStringToObject(arg, "type", "integer");
                 break;
             case PROPERTY_BOOLEAN:
-                cJSON_AddBoolToObject(arg, "type", true);
+                cJSON_AddStringToObject(arg, "type", "boolean");
                 break;
+            case PROPERTY_ARRAY: {
+                cJSON_AddStringToObject(arg, "type", "array");
+                cJSON *items = cJSON_CreateObject();
+
+                switch (tools[i].properties[k].elements[0].type) {
+                case PROPERTY_STRING:
+                    cJSON_AddStringToObject(items, "type", "string");
+                    break;
+                case PROPERTY_REAL:
+                    cJSON_AddStringToObject(items, "type", "number");
+                    break;
+                case PROPERTY_INTEGER:
+                    cJSON_AddStringToObject(items, "type", "integer");
+                    break;
+                case PROPERTY_BOOLEAN:
+                    cJSON_AddStringToObject(items, "type", "boolean");
+                    break;
+                default:
+                    break;
+                }
+
+                cJSON_AddItemToObject(arg, "items", items);
+                break;
+            }
+            case PROPERTY_OBJECT: {
+                cJSON_AddStringToObject(arg, "type", "object");
+                cJSON *properties = cJSON_CreateObject();
+
+                for (int j = 0; j < tools[i].properties[k].n_elements; j++) {
+                    cJSON *prop = cJSON_CreateObject();
+
+                    if (tools[i].properties[k].elements[j].description) {
+                        cJSON_AddStringToObject(
+                            prop, "description",
+                            tools[i].properties[k].elements[j].description);
+                    }
+
+                    switch (tools[i].properties[k].elements[j].type) {
+                    case PROPERTY_STRING:
+                        cJSON_AddStringToObject(prop, "type", "string");
+                        break;
+                    case PROPERTY_REAL:
+                        cJSON_AddStringToObject(prop, "type", "number");
+                        break;
+                    case PROPERTY_INTEGER:
+                        cJSON_AddStringToObject(prop, "type", "integer");
+                        break;
+                    case PROPERTY_BOOLEAN:
+                        cJSON_AddStringToObject(prop, "type", "boolean");
+                        break;
+                    default:
+                        break;
+                    }
+
+                    cJSON_AddItemToObject(
+                        properities, tools[i].properties[k].elements[j].name,
+                        prop);
+                }
+
+                cJSON_AddItemToObject(arg, "properties", properties);
+                break;
+            }
             }
 
             cJSON_AddItemToArray(
@@ -400,6 +462,7 @@ int jsonrpc_tool_call_decode(const jsonrpc_t *jsonrpc, char **function_name,
         (*n_args)++;
         *args = realloc(*args, (*n_args) * sizeof(property_t));
         property_t *current_arg = &(*args)[*n_args - 1];
+        current_arg->elements   = NULL;
 
         current_arg->name = current->string ? strdup(current->string) : NULL;
         if (cJSON_IsString(current)) {
@@ -411,6 +474,54 @@ int jsonrpc_tool_call_decode(const jsonrpc_t *jsonrpc, char **function_name,
         } else if (cJSON_IsBool(current)) {
             current_arg->type                = PROPERTY_BOOLEAN;
             current_arg->value.boolean_value = cJSON_IsTrue(current);
+        } else if (cJSON_IsArray(current)) {
+            current_arg->type       = PROPERTY_ARRAY;
+            current_arg->n_elements = cJSON_GetArraySize(current);
+            current_arg->elements =
+                calloc(current_arg->n_elements, sizeof(property_t));
+
+            for (int i = 0; i < current_arg->n_elements; i++) {
+                cJSON *     element   = cJSON_GetArrayItem(current, i);
+                property_t *elem_prop = &current_arg->elements[i];
+
+                if (cJSON_IsString(element)) {
+                    elem_prop->type = PROPERTY_STRING;
+                    elem_prop->value.string_value =
+                        strdup(element->valuestring);
+                } else if (cJSON_IsNumber(element)) {
+                    elem_prop->type             = PROPERTY_REAL;
+                    elem_prop->value.real_value = element->valuedouble;
+                } else if (cJSON_IsBool(element)) {
+                    elem_prop->type                = PROPERTY_BOOLEAN;
+                    elem_prop->value.boolean_value = cJSON_IsTrue(element);
+                }
+            }
+        } else if (cJSON_IsObject(current)) {
+            current_arg->type       = PROPERTY_OBJECT;
+            current_arg->n_elements = 0;
+            cJSON *obj_child        = current->child;
+            while (obj_child != NULL) {
+                current_arg->n_elements++;
+                current_arg->elements =
+                    realloc(current_arg->elements,
+                            current_arg->n_elements * sizeof(property_t));
+                property_t *elem_prop =
+                    &current_arg->elements[current_arg->n_elements - 1];
+                elem_prop->name =
+                    obj_child->string ? strdup(obj_child->string) : NULL;
+                if (cJSON_IsString(obj_child)) {
+                    elem_prop->type = PROPERTY_STRING;
+                    elem_prop->value.string_value =
+                        strdup(obj_child->valuestring);
+                } else if (cJSON_IsNumber(obj_child)) {
+                    elem_prop->type             = PROPERTY_REAL;
+                    elem_prop->value.real_value = obj_child->valuedouble;
+                } else if (cJSON_IsBool(obj_child)) {
+                    elem_prop->type                = PROPERTY_BOOLEAN;
+                    elem_prop->value.boolean_value = cJSON_IsTrue(obj_child);
+                }
+                obj_child = obj_child->next;
+            }
         } else {
             // Unsupported type
             return -4;
@@ -424,7 +535,7 @@ int jsonrpc_tool_call_decode(const jsonrpc_t *jsonrpc, char **function_name,
 }
 
 jsonrpc_t *jsonrpc_tool_call_response(const jsonrpc_id_t *id,
-                                      const char         *result)
+                                      const char *        result)
 {
     jsonrpc_t *jsonrpc          = calloc(1, sizeof(jsonrpc_t));
     jsonrpc->id                 = *id;
@@ -444,7 +555,7 @@ jsonrpc_t *jsonrpc_tool_call_response(const jsonrpc_id_t *id,
 
 jsonrpc_t *jsonrpc_resource_list_response(const jsonrpc_id_t *id,
                                           int                 n_resources,
-                                          mcp_resource_t     *resources)
+                                          mcp_resource_t *    resources)
 {
     jsonrpc_t *jsonrpc          = calloc(1, sizeof(jsonrpc_t));
     jsonrpc->id                 = *id;
@@ -478,8 +589,8 @@ jsonrpc_t *jsonrpc_resource_list_response(const jsonrpc_id_t *id,
 }
 
 jsonrpc_t *jsonrpc_resource_read_text_response(const jsonrpc_id_t *id,
-                                               mcp_resource_t     *resource,
-                                               const char         *content)
+                                               mcp_resource_t *    resource,
+                                               const char *        content)
 {
     jsonrpc_t *jsonrpc          = calloc(1, sizeof(jsonrpc_t));
     jsonrpc->id                 = *id;

@@ -381,10 +381,44 @@ static bool mcp_server_tool_check(mcp_server_t *server, const char *tool_name,
                         args[j].type = PROPERTY_INTEGER;
                         args[j].value.integer_value =
                             (long long) args[j].value.real_value;
+                    } else if (server->tools[i].properties[j].type ==
+                               PROPERTY_ARRAY) {
+                        if (server->tools[i].properties[j].n_elements > 0 &&
+                            server->tools[i].properties[j].elements[0].type ==
+                                PROPERTY_INTEGER) {
+                            for (int k = 0; k < args[j].n_elements; k++) {
+                                if (args[j].elements[k].type == PROPERTY_REAL) {
+                                    args[j].elements[k].type = PROPERTY_INTEGER;
+                                    args[j].elements[k].value.integer_value =
+                                        (long long) args[j]
+                                            .elements[k]
+                                            .value.real_value;
+                                }
+                            }
+                        }
+                    } else if (server->tools[i].properties[j].type ==
+                               PROPERTY_OBJECT) {
+                        for (int k = 0;
+                             k < server->tools[i].properties[j].n_elements;
+                             k++) {
+                            if (server->tools[i]
+                                    .properties[j]
+                                    .elements[k]
+                                    .type == PROPERTY_INTEGER) {
+                                if (args[j].elements[k].type == PROPERTY_REAL) {
+                                    args[j].elements[k].type = PROPERTY_INTEGER;
+                                    args[j].elements[k].value.integer_value =
+                                        (long long) args[j]
+                                            .elements[k]
+                                            .value.real_value;
+                                }
+                            }
+                        }
                     }
                 }
             }
             *tool = &server->tools[i];
+            printf("Tool found: %s\n", tool_name);
             return true;
         }
     }
