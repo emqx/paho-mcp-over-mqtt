@@ -184,7 +184,7 @@ void mcp_server_example()
 {
     mcp_server_t *server = mcp_server_init(
         "ESP32 Demo Server Name", "This is an example MCP server",
-        "tcp://broker.fengzero.com:1883", "example_client", NULL, NULL, NULL);
+        "tcp://broker.emqx.io:1883", "example_client", NULL, NULL, NULL);
 
     mcp_server_register_tool(server, 4, tools);
 
